@@ -94,9 +94,11 @@ function changeBoxes(fromBox, toBox){
 							}
 							console.log('/new/MB'+toBox+'.xml written');
 							numberOfProcesses--;
+							// If renumbring is complete, run the remainder of functions.
 							if(numberOfProcesses === 0){
 								changeList();
 								changeDistribution();
+								changeCallProcessor();
 							}
 						});
 					} else {
@@ -158,7 +160,38 @@ function changeDistribution(){
 				});	
 			}
 		}
-	
 		});
 	});
 }
+
+// Change any reference to renumbered mailboxes in call processors.
+function changeCallProcessor(){
+	fullMailboxList.forEach(function(mailboxFileName){
+		fs.readFile(mailboxFileName, 'utf8', (err, file) => {
+		if(err){
+			// Show error for missing files.
+		} else {
+			var thisFile = file.toString('utf8');
+			//Check if this is a call processor
+			if(thisFile.match('<MBType>3</MBType>')){
+				var counter = 0;
+				while(counter < renumberArray.length){
+					var oldTemplate = new RegExp('<Template>' + renumberArray[counter][0] + '<\/Template>','gi');
+					thisFile = thisFile.replace(oldTemplate, '<Template>' + renumberArray[counter][1] + '</Template>');
+					counter++;
+				}
+				fs.writeFile('./new/' + mailboxFileName, thisFile, function(err) {
+					if(err) {
+						return console.log('FAILED TO WRITE: ./new/' + mailboxFileName);
+					} else {
+						console.log('/new/' + mailboxFileName + ' written');
+					}
+				});	
+			}
+		}
+		});
+	});
+}
+
+
+
