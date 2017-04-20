@@ -3,9 +3,12 @@
 // Raymond Rizzo
 
 var renumberArray = [];
-
+var fullMailboxList = [];
 var fs = require('fs');
 var numberOfProcesses = 0;
+
+// First thing is firs. Get the directory listing of maiboxes.
+getMBlist();
 
 // load CSV file if selected.
 if(process.argv[2] === '--csv'){
@@ -24,7 +27,12 @@ if(process.argv[2] === '--csv'){
 	});
 } else if(process.argv[2] === '--help'){
 	console.log('\n\n\nCSV file input:\n\tTo bulk renuber boxes based off of a .CSV file, run: avst-renumber.js --csv {filename.csv}\n\n\n');
-} else {
+} else if(process.argv[2] === '--test'){
+	// Debug section
+	
+}
+
+else {
 	console.log('\n\n\nInvalid Input\nRun "avst-renumber.js --help" for more information.\n\n\n');
 }
 
@@ -43,6 +51,24 @@ function splitCsv(fileIn){
 		}
 		return csvArray;
 }
+
+// Find MB files.
+function getMBlist(){
+		fs.readdir('./', (err, files) => {
+		if(err){
+			console.log(err);
+		} else {
+			var fileList = files;
+			var matchIt = new RegExp('MB\\d\{1,10\}.XML');
+			fileList.forEach(function(fileName){
+				if(fileName.match(matchIt)){
+						fullMailboxList.push(fileName);
+						}
+			});
+		}
+	});	
+}
+
 
 // Change MBID and ID in file.
 function changeBoxes(fromBox, toBox){
@@ -70,6 +96,7 @@ function changeBoxes(fromBox, toBox){
 							numberOfProcesses--;
 							if(numberOfProcesses === 0){
 								changeList();
+								changeDistribution();
 							}
 						});
 					} else {
@@ -79,6 +106,7 @@ function changeBoxes(fromBox, toBox){
 		});
 }
 
+// Change the index file to the new values.
 function changeList(){
 	fs.readFile('./MBLIST.xml', 'utf8', (err, file) => {
 		if(err){
@@ -96,9 +124,41 @@ function changeList(){
 			fs.writeFile('./new/MBLIST.xml', mailboxList, function(err) {
 				if(err) {
 					return console.log('FAILED TO WRITE: ./new/MBLIST.xml');
+				} else {
+					console.log('/new/MBLIST.xml written');
 				}
-				console.log('/new/MBLIST.xml written');
 			});
 		}
+	});
+}
+
+// Change any reference to renumbered mailboxes in distribution groups.
+function changeDistribution(){
+	fullMailboxList.forEach(function(mailboxFileName){
+		fs.readFile(mailboxFileName, 'utf8', (err, file) => {
+		if(err){
+			// Show error for missing files.
+		} else {
+			var thisFile = file.toString('utf8');
+			//Check if this is a distribution list
+			if(thisFile.match('<MBType>D</MBType>')){
+				var counter = 0;
+				while(counter < renumberArray.length){
+					var oldMemberMBID = new RegExp('<MemberMBID>' + renumberArray[counter][0] + '<\/MemberMBID>','gi');
+					//console.log(thisFile.match(oldMemberMBID));
+					thisFile = thisFile.replace(oldMemberMBID, '<MemberMBID>' + renumberArray[counter][1] + '</MemberMBID>');
+					counter++;
+				}
+				fs.writeFile('./new/' + mailboxFileName, thisFile, function(err) {
+					if(err) {
+						return console.log('FAILED TO WRITE: ./new/' + mailboxFileName);
+					} else {
+						console.log('/new/' + mailboxFileName + ' written');
+					}
+				});	
+			}
+		}
+	
+		});
 	});
 }
